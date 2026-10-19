@@ -67,8 +67,8 @@ contact: 'team@carpentries.org' # FIXME
 
 # Order of episodes in your lesson
 episodes:
-- llm_fine_tuning.md
 - llms_and_python.md
+- llm_fine_tuning.md
 
 # Information for Learners
 learners:
