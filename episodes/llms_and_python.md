@@ -113,15 +113,25 @@ model_inputs = tokenizer.apply_chat_template(messages)
 
 Foundation models are those which have simply been trained to predict the next word. Instruction-tuned models are foundation models which have further been trained to expect input to have a particular structure, usually in the form of a conversation: a user instruction followed by a response from the system. More advanced models may have additional roles such as "system" and "thinking". The exact format used to distinguish between the roles varies greatly across different models.
 
-It is important to select the right sort of model for your task. For example, when performing inference an instruct model may be able to perform simple text-generation tasks, but it will not do so as well as a similar foundation model. Similarly, a foundation model may be able to infer the required structure for a char interface, but it will not perform as well as an instruct model.
+It is important to select the right sort of model for your task. For example, when performing inference an instruct model may be able to perform simple text-generation tasks, but it will not do so as well as a similar foundation model. Similarly, a foundation model may be able to infer the required structure for a instruct interface, but it will not perform as well as a model fine-tuned for that format.
 
-Similarly, when fine-tuning a model most often a foundation model is the most appropriate choice unless, the task is specifically to fine-tune the responses of an instruction model.
+Similarly, when fine-tuning, most often a foundation model is the most appropriate choice unless, the task is specifically to fine-tune the responses of an instruction model.
+
+:::
+
+::: spoiler
+
+### Alternative Frameworks
+
+We're using Transformers in this course because they give an API that is flexible and permits training, and integrates well with PyTorch.  However, this flexibility comes at some cost in terms of speed and resources. If all you need is inference on open weights models, there are libraries such as [vLLM](https://vllm.ai/) and [TensorRT LLM](https://developer.nvidia.com/tensorrt-llm) that give better performance for pure inference tasks.  However these may or may not work as well across multiple nodes on Iridis.
 
 :::
 
 ### Fine-Tuning
 
 Training an LLM is, in principle, the same as training any other deep neural network. For each epoch you iterate over the instances and then each batch in the training data, and perform a prediction. A loss is computed, and back-propagation performed to update the trainable weights.
+
+One difference is that datasets typically store training data as plain text, where the model needs to be given tokenised data.  While you can do this on-demand that means re-computing the tokenized values again and again for each epoch. So it makes sense to pre-compute the tokenised values.
 
 So, for example, you can train a classifier on top of an LLM with code like the following, which is not dissimilar to general deep learning training code:
 
@@ -133,6 +143,13 @@ model = AutoModelForSequenceClassification.from_pretrained(
 )
 optimizer = AdamW(model.parameters(), lr=5e-5)
 
+dataset = load_dataset("yelp/yelp_review_full")
+train_dataloader = DataLoader(dataset["train"], shuffle=True)
+```
+
+The training loop is then exactly as you would do for a typical deep learning model: compute the forward, get the loss, back-propagate and update the optimizer's state.
+
+``` python
 for epoch in range(1, epochs+1):
     for batch in train_dataloader:
         outputs = model(**batch)
@@ -145,5 +162,8 @@ for epoch in range(1, epochs+1):
 
 Other LLM-related models can be trained similarly with the PyTorch API with appropriate modifications to the loss functions, scheduling, optimizers and so forth. And the techniques using Accelerate discussed in previous sessions can be used to distribute work across available hardware.
 
-However many fine-tuning and other training activities are very standardized. Transformers provides a `Trainer` class which provides a generic interface for standard training activities, including fine-tuning.
+This works the same way as discussed in previous sessions. The appropriate objects are given as arguments to Accelerate's `prepare` function, and the corresponding return values are wrapped to run on the available hardware.
+
+## Distributed Logging
+
 
