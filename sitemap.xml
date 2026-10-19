@@ -52,6 +52,12 @@
     <loc>https://carpentries.github.io/workbench-template-rmd/instructor/key-points.html</loc>
   </url>
   <url>
+    <loc>https://carpentries.github.io/workbench-template-rmd/instructor/llm_fine_tuning.html</loc>
+  </url>
+  <url>
+    <loc>https://carpentries.github.io/workbench-template-rmd/instructor/llms_and_python.html</loc>
+  </url>
+  <url>
     <loc>https://carpentries.github.io/workbench-template-rmd/instructor/profiles.html</loc>
   </url>
   <url>
@@ -65,6 +71,12 @@
   </url>
   <url>
     <loc>https://carpentries.github.io/workbench-template-rmd/key-points.html</loc>
+  </url>
+  <url>
+    <loc>https://carpentries.github.io/workbench-template-rmd/llm_fine_tuning.html</loc>
+  </url>
+  <url>
+    <loc>https://carpentries.github.io/workbench-template-rmd/llms_and_python.html</loc>
   </url>
   <url>
     <loc>https://carpentries.github.io/workbench-template-rmd/profiles.html</loc>
