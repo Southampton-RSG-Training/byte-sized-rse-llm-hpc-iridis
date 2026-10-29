@@ -306,7 +306,7 @@
       </div>
     </nav><main id="main-content" class="main-content"><div class="container lesson-content">
         <h1>Fine-Tuning an LLM on Iridis X</h1>
-        <p>Last updated on 2026-10-19 |
+        <p>Last updated on 2026-10-29 |
 
         <a href="https://github.com/carpentries/workbench-template-rmd/edit/main/episodes/llm_fine_tuning.md" class="external-link">Edit this page <i aria-hidden="true" data-feather="edit"></i></a></p>
 
@@ -345,19 +345,143 @@
 LLM and fine-tunes it to to sentiment analysis on Yelp data. We’ll be
 using HuggingFace’s Transformers and Accelerate libraries to handle
 training models and working with different hardware.</p>
+<p>The goal is to fine tune a small LLM on the <a href="https://huggingface.co/datasets/Yelp/yelp_review_full" class="external-link">Yelp
+reviews data</a>, trying to predict the rating of a restaurant from the
+text of a review. We’ll use the <a href="https://huggingface.co/HuggingFaceTB/SmolLM2-135M" class="external-link">SmolLM2-135M</a>
+from HuggingFace. We’re deliberately using a tiny model for the example
+code, but the same code should work with a much larger model. The
+scripts take a <code>--model</code> argument which allows you to
+experiment with other models if you choose.</p>
+<p>Ideally you want to be able to run and test your code locally before
+you try to run in the HPC environment.</p>
+<div id="install-the-code-and-llm-locally" class="callout challenge">
+<div class="callout-square">
+<i class="callout-icon" data-feather="zap"></i>
+</div>
+<span class="callout-header">Challenge</span>
+<div id="install-the-code-and-llm-locally" class="callout-inner">
+<h3 class="callout-title">Install the code and LLM locally</h3>
+<div class="callout-content">
+<p>To run the code locally, clone the github repository for the course
+and set up a virtual environment:</p>
 <div class="codewrapper sourceCode" id="cb1">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1" aria-label="code-block-1-1"></a><span class="fu">git</span> clone https://github.com/Southampton-RSG-Training/byte-sized-rse-llm-fine-tuning-example.git</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1" aria-label="code-block-1-2"></a><span class="bu">cd</span> byte-sized-rse-llm-fine-tuning-example</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1" aria-label="code-block-1-3"></a><span class="ex">python3.14</span> <span class="at">-m</span> venv venv</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1" aria-label="code-block-1-4"></a><span class="bu">source</span> venv/bin/activate</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1" aria-label="code-block-1-5"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span></code></pre>
+</div>
+<p>Now we need to download the data and LLM. There is a Python script
+that will do this for us:</p>
+<div class="codewrapper sourceCode" id="cb2">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1" aria-label="code-block-2-1"></a><span class="ex">python</span> llm_download.py</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<p>The setup for the training is largely as discussed earlier, using
+<code>AutoModelForSequenceClassification</code> since the fine-tuning is
+a classification exercise.</p>
+<div class="codewrapper sourceCode" id="cb3">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" tabindex="-1" aria-label="code-block-1-1"></a>model <span class="op">=</span> AutoModelForSequenceClassification.from_pretrained(</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1" aria-label="code-block-1-2"></a>    model_path,</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1" aria-label="code-block-1-3"></a>    num_labels<span class="op">=</span>num_labels,</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1" aria-label="code-block-1-4"></a>    torch_dtype<span class="op">=</span>torch.float32,</span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1" aria-label="code-block-1-5"></a>)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" tabindex="-1" aria-label="code-block-3-1"></a>num_labels <span class="op">=</span> <span class="bu">len</span>(dataset.unique(<span class="st">'labels'</span>)[<span class="st">'train'</span>])</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1" aria-label="code-block-3-2"></a>model <span class="op">=</span> AutoModelForSequenceClassification.from_pretrained(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1" aria-label="code-block-3-3"></a>    model_path,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1" aria-label="code-block-3-4"></a>    num_labels<span class="op">=</span>num_labels,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1" aria-label="code-block-3-5"></a>    torch_dtype<span class="op">=</span>torch.float32,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1" aria-label="code-block-3-6"></a>)</span></code></pre>
+</div>
+<div id="run-the-fine-tuning-locally" class="callout challenge">
+<div class="callout-square">
+<i class="callout-icon" data-feather="zap"></i>
+</div>
+<span class="callout-header">Challenge</span>
+<div id="run-the-fine-tuning-locally" class="callout-inner">
+<h3 class="callout-title">Run the fine-tuning locally</h3>
+<div class="callout-content">
+<p>To fine-tune the model, you just need to run the script:</p>
+<div class="codewrapper sourceCode" id="cb4">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a><span class="ex">python</span> llm_fine_tuning.py</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="training-on-iridis">Training on Iridis<a class="anchor" aria-label="anchor" href="#training-on-iridis"></a></h3>
+<p>To run this on the HPC cluster, we go through much the same process
+as locally. We need to install the code from GitHub and download the
+dataset and LLM weights. This has to be done on the login node, since we
+need internet access.</p>
+<div id="install-the-code-and-llm-on-iridis" class="callout challenge">
+<div class="callout-square">
+<i class="callout-icon" data-feather="zap"></i>
+</div>
+<span class="callout-header">Challenge</span>
+<div id="install-the-code-and-llm-on-iridis" class="callout-inner">
+<h3 class="callout-title">Install the code and LLM on Iridis</h3>
+<div class="callout-content">
+<p>Login to the Iridis X login node
+<code>loginX001.iridis.soton.ac.uk</code>. The bash command looks
+something like:</p>
+<div class="codewrapper sourceCode" id="cb5">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a><span class="fu">ssh</span> loginX001.iridis.soton.ac.uk</span></code></pre>
+</div>
+<p>Once logged in, the steps to install the software and model are
+largely the same, however we need to remember to load the Python and
+CUDA module so that we have access to Python and everything installs
+correctly:</p>
+<div class="codewrapper sourceCode" id="cb6">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a><span class="ex">module</span> load python</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1" aria-label="code-block-6-2"></a><span class="ex">module</span> load cuda</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1" aria-label="code-block-6-3"></a><span class="fu">git</span> clone https://github.com/Southampton-RSG-Training/byte-sized-rse-llm-fine-tuning-example.git</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1" aria-label="code-block-6-4"></a><span class="bu">cd</span> byte-sized-rse-llm-fine-tuning-example</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1" aria-label="code-block-6-5"></a><span class="ex">python3.14</span> <span class="at">-m</span> venv venv</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1" aria-label="code-block-6-6"></a><span class="bu">source</span> venv/bin/activate</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1" aria-label="code-block-6-7"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1" aria-label="code-block-6-8"></a><span class="ex">python</span> llm_download.py</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<p>You can run the code using sbatch as normal. There are a number of
+different batch files configured for different scenarios, including a
+simple single-node multi-GPU configuration for the <code>l4</code>
+partition, a multi-node configuration for Iridis 7, and a fully-sharded
+data parallel configuration for <code>l4</code>.</p>
+<div id="challenge4" class="callout challenge">
+<div class="callout-square">
+<i class="callout-icon" data-feather="zap"></i>
+</div>
+<span class="callout-header">Challenge</span>
+<div class="callout-inner">
+<h3 class="callout-title">Challenge</h3>
+<div class="callout-content">
+<p>After this session is over, at your leisure, you can try running the
+single-node configuration on <code>l4</code>:</p>
+<div class="codewrapper sourceCode" id="cb7">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a><span class="ex">sbatch</span> single-node-l4.sh</span></code></pre>
+</div>
+</div>
+</div>
 </div>
 <!--
 Place links that you need to refer to multiple times across pages here. Delete
 any links that you are not going to use.
  -->
+</div>
 </section></div> <!-- / div.lesson-content -->
     </main><!-- / main#main-content.main-content --><nav class="bottom-pagination mx-md-4" aria-label="Previous and Next Chapter Bottom"><div class="d-block d-sm-block d-md-none">
         <a class="chapter-link" href="llms_and_python.html"><i aria-hidden="true" class="small-arrow" data-feather="arrow-left"></i>Previous</a>
@@ -418,8 +542,8 @@ any links that you are not going to use.
   "url": "https://carpentries.github.io/workbench-template-rmd/llm_fine_tuning.html",
   "identifier": "https://carpentries.github.io/workbench-template-rmd/llm_fine_tuning.html",
   "dateCreated": "2026-10-19",
-  "dateModified": "2026-10-19",
-  "datePublished": "2026-10-27"
+  "dateModified": "2026-10-29",
+  "datePublished": "2026-10-29"
 }
 
   </script><script>
