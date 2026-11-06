@@ -342,7 +342,7 @@
         
 <section id="aio-llms_and_python"><p>Content from <a href="llms_and_python.html">Local LLMs and Python</a></p>
 <hr>
-<p>Last updated on 2026-10-29 |
+<p>Last updated on 2026-11-06 |
 
         <a href="https://github.com/carpentries/workbench-template-rmd/edit/main/episodes/llms_and_python.md" class="external-link">Edit this page <i aria-hidden="true" data-feather="edit"></i></a></p>
 <p>Estimated time: <i aria-hidden="true" data-feather="clock"></i> 12 minutes</p>
@@ -358,6 +358,9 @@
 <h3 class="card-title">Questions</h3>
 <ul>
 <li>How do I work with large language models in research?</li>
+<li>How do I fine-tune an LLM to perform various tasks.</li>
+<li>How do I train an LLM using multiple GPUs.</li>
+<li>What challenges are there when working with large models.</li>
 </ul>
 </div>
 </div>
@@ -367,8 +370,13 @@
 <div class="inner bordered">
 <h3 class="card-title">Objectives</h3>
 <ul>
-<li>Learn how to use the Transformers library to load models and perform
+<li>Use the Transformers library to load models and perform
 inference.</li>
+<li>Understand typical data preparation and tokenization steps.</li>
+<li>Fine-tune an LLM for classification.</li>
+<li>Be able to distribute training over multiple GPUs and nodes.</li>
+<li>Be able to handle models that are larger than available GPU memory
+by sharding across multiple GPUs.</li>
 </ul>
 </div>
 </div>
@@ -472,67 +480,76 @@ sources, such as “safetensors” format files.</p>
 formats suitable for use with particular tasks, primarily for use with
 Transformers, but also potentially with other tools and libraries as
 well.</p>
+<p>The <code>datasets.load_dataset</code> command allows you to load a
+dataset from either a local directory or remotely from HuggingFace:</p>
+<div class="codewrapper sourceCode" id="cb2">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1" aria-label="code-block-2-1"></a><span class="im">from</span> datasets <span class="im">import</span> load_dataset</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1" aria-label="code-block-2-2"></a></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1" aria-label="code-block-2-3"></a>dataset <span class="op">=</span> load_dataset(<span class="st">"yelp/yelp_review_full"</span>)</span></code></pre>
+</div>
 </div>
 <div class="section level3">
 <h3 id="inference">Inference<a class="anchor" aria-label="anchor" href="#inference"></a>
 </h3>
 <p>For most inference tasks using a pre-trained LLM, you need to
 tokenize the inputs using the tokenizer:</p>
-<div class="codewrapper sourceCode" id="cb2">
-<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
-</h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1" aria-label="code-block-2-1"></a>model_inputs <span class="op">=</span> tokenizer([<span class="st">"The Python programming language is useful for "</span>], return_tensors<span class="op">=</span><span class="st">"pt"</span>)</span></code></pre>
-</div>
-<p>For simple inference, you call the model with the appropriate
-inputs:</p>
 <div class="codewrapper sourceCode" id="cb3">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" tabindex="-1" aria-label="code-block-3-1"></a>prediction <span class="op">=</span> model(<span class="op">**</span>model_inputs)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" tabindex="-1" aria-label="code-block-3-1"></a>model_inputs <span class="op">=</span> tokenizer([<span class="st">"The Python programming language is useful for "</span>], return_tensors<span class="op">=</span><span class="st">"pt"</span>)</span></code></pre>
 </div>
-<p>In this case the prediction is an object with relevant data attached,
-in particular, for LLM</p>
+<p>For simple inference, you call the model with the appropriate
+inputs:</p>
 <div class="codewrapper sourceCode" id="cb4">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a>prediction.logits</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a>prediction <span class="op">=</span> model(<span class="op">**</span>model_inputs)</span></code></pre>
+</div>
+<p>In this case the prediction is an object with relevant data attached,
+in particular, for LLM</p>
+<div class="codewrapper sourceCode" id="cb5">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a>prediction.logits</span></code></pre>
 </div>
 <p>is a tensor with the logit weights for each token which can be turned
 into a probability distribution for the next token in the sequence with
 <code>softmax</code>.</p>
 <p>For general text generation there are methods that simplify the
 process of repeatedly generating tokens:</p>
-<div class="codewrapper sourceCode" id="cb5">
+<div class="codewrapper sourceCode" id="cb6">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a>tokens <span class="op">=</span> model.generate(<span class="op">**</span>model_inputs, max_length<span class="op">=</span><span class="dv">100</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1" aria-label="code-block-5-2"></a>words <span class="op">=</span> tokenizer.batch_decode(tokens)</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1" aria-label="code-block-5-3"></a><span class="bu">print</span>(words[<span class="dv">0</span>])</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a>tokens <span class="op">=</span> model.generate(<span class="op">**</span>model_inputs, max_length<span class="op">=</span><span class="dv">100</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1" aria-label="code-block-6-2"></a>words <span class="op">=</span> tokenizer.batch_decode(tokens)</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1" aria-label="code-block-6-3"></a><span class="bu">print</span>(words[<span class="dv">0</span>])</span></code></pre>
 </div>
 <p>In fact for the most common tasks with pre-trained models, you can
 use the <code>pipeline</code> factory to set everything up to give an
 object that you can simply call to perform inference.</p>
-<div class="codewrapper sourceCode" id="cb6">
+<div class="codewrapper sourceCode" id="cb7">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a><span class="im">from</span> transformers <span class="im">import</span> pipeline</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1" aria-label="code-block-6-2"></a></span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1" aria-label="code-block-6-3"></a>pipe <span class="op">=</span> pipeline(<span class="st">"text-generation"</span>, model<span class="op">=</span><span class="st">"HuggingFaceTB/SmolLM2-135M-Instruct"</span>)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a><span class="im">from</span> transformers <span class="im">import</span> pipeline</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1" aria-label="code-block-7-2"></a></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1" aria-label="code-block-7-3"></a>pipe <span class="op">=</span> pipeline(<span class="st">"text-generation"</span>, model<span class="op">=</span><span class="st">"HuggingFaceTB/SmolLM2-135M-Instruct"</span>)</span></code></pre>
 </div>
 <p>For instruct models (as opposed to foundation models) you can pass a
 message dictionary with the role and content and it will be
 automatically formatted as the model expects:</p>
-<div class="codewrapper sourceCode" id="cb7">
-<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
-</h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a>messages <span class="op">=</span> [{<span class="st">'role'</span>: <span class="st">'user'</span>, <span class="st">'content'</span>: <span class="st">"The University of Southampton is?"</span>}]</span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1" aria-label="code-block-7-2"></a><span class="bu">print</span>(pipe(messages, max_new_tokens<span class="op">=</span><span class="dv">100</span>,))</span></code></pre>
-</div>
-<p>You can also do this with the tokenizer for instruct models:</p>
 <div class="codewrapper sourceCode" id="cb8">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" tabindex="-1" aria-label="code-block-8-1"></a>model_inputs <span class="op">=</span> tokenizer.apply_chat_template(messages)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" tabindex="-1" aria-label="code-block-8-1"></a>messages <span class="op">=</span> [{<span class="st">'role'</span>: <span class="st">'user'</span>, <span class="st">'content'</span>: <span class="st">"The University of Southampton is?"</span>}]</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1" aria-label="code-block-8-2"></a><span class="bu">print</span>(pipe(messages, max_new_tokens<span class="op">=</span><span class="dv">100</span>,))</span></code></pre>
+</div>
+<p>You can also do this with the tokenizer for instruct models:</p>
+<div class="codewrapper sourceCode" id="cb9">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" tabindex="-1" aria-label="code-block-9-1"></a>model_inputs <span class="op">=</span> tokenizer.apply_chat_template(messages)</span></code></pre>
 </div>
 <div id="accordionSpoiler1" class="accordion spoiler-accordion accordion-flush">
 <div class="accordion-item">
@@ -579,8 +596,7 @@ is flexible and permits training, and integrates well with PyTorch.
 However, this flexibility comes at some cost in terms of speed and
 resources. If all you need is inference on open weights models, there
 are libraries such as <a href="https://vllm.ai/" class="external-link">vLLM</a> and <a href="https://developer.nvidia.com/tensorrt-llm" class="external-link">TensorRT LLM</a> that
-give better performance for pure inference tasks. However these may or
-may not work as well across multiple nodes on Iridis.</p>
+give better performance for pure inference tasks.</p>
 </div>
 </div>
 </div>
@@ -597,42 +613,42 @@ weights.</p>
 <p>So, for example, you can train a classifier on top of an LLM with
 code like the following, which is not dissimilar to general deep
 learning training code:</p>
-<div class="codewrapper sourceCode" id="cb9">
+<div class="codewrapper sourceCode" id="cb10">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" tabindex="-1" aria-label="code-block-9-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_path)</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1" aria-label="code-block-9-2"></a>model <span class="op">=</span> AutoModelForSequenceClassification.from_pretrained(</span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1" aria-label="code-block-9-3"></a>    <span class="st">"HuggingFaceTB/SmolLM2-135M"</span>,</span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1" aria-label="code-block-9-4"></a>    num_labels<span class="op">=</span>num_labels,</span>
-<span id="cb9-5"><a href="#cb9-5" tabindex="-1" aria-label="code-block-9-5"></a>)</span>
-<span id="cb9-6"><a href="#cb9-6" tabindex="-1" aria-label="code-block-9-6"></a>optimizer <span class="op">=</span> AdamW(model.parameters(), lr<span class="op">=</span><span class="fl">5e-5</span>)</span>
-<span id="cb9-7"><a href="#cb9-7" tabindex="-1" aria-label="code-block-9-7"></a></span>
-<span id="cb9-8"><a href="#cb9-8" tabindex="-1" aria-label="code-block-9-8"></a>dataset <span class="op">=</span> load_dataset(<span class="st">"yelp/yelp_review_full"</span>)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" tabindex="-1" aria-label="code-block-10-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_path)</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1" aria-label="code-block-10-2"></a>model <span class="op">=</span> AutoModelForSequenceClassification.from_pretrained(</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1" aria-label="code-block-10-3"></a>    <span class="st">"HuggingFaceTB/SmolLM2-135M"</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1" aria-label="code-block-10-4"></a>    num_labels<span class="op">=</span>num_labels,</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1" aria-label="code-block-10-5"></a>)</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1" aria-label="code-block-10-6"></a>optimizer <span class="op">=</span> AdamW(model.parameters(), lr<span class="op">=</span><span class="fl">5e-5</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1" aria-label="code-block-10-7"></a></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1" aria-label="code-block-10-8"></a>dataset <span class="op">=</span> load_dataset(<span class="st">"yelp/yelp_review_full"</span>)</span></code></pre>
 </div>
 <p>One difference is that datasets typically store training data as
 plain text, where the model needs to be given tokenised data. While you
 can do this on-demand that means re-computing the tokenized values again
 and again for each epoch. So it makes sense to pre-compute the tokenised
 values. Code to do this looks something like this:</p>
-<div class="codewrapper sourceCode" id="cb10">
+<div class="codewrapper sourceCode" id="cb11">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" tabindex="-1" aria-label="code-block-10-1"></a><span class="co"># This particular tokenizer doesn't have a pad token, so pad with sequence tokens</span></span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1" aria-label="code-block-10-2"></a>tokenizer.pad_token <span class="op">=</span> tokenizer.eos_token</span>
-<span id="cb10-3"><a href="#cb10-3" tabindex="-1" aria-label="code-block-10-3"></a></span>
-<span id="cb10-4"><a href="#cb10-4" tabindex="-1" aria-label="code-block-10-4"></a><span class="kw">def</span> tokenize_function(examples):</span>
-<span id="cb10-5"><a href="#cb10-5" tabindex="-1" aria-label="code-block-10-5"></a>    <span class="co">"""Truncate/pad to 256 tokens."""</span></span>
-<span id="cb10-6"><a href="#cb10-6" tabindex="-1" aria-label="code-block-10-6"></a>    <span class="cf">return</span> tokenizer(</span>
-<span id="cb10-7"><a href="#cb10-7" tabindex="-1" aria-label="code-block-10-7"></a>        examples[columns[<span class="st">"text"</span>]],</span>
-<span id="cb10-8"><a href="#cb10-8" tabindex="-1" aria-label="code-block-10-8"></a>        pad<span class="op">=</span><span class="st">"max_length"</span>,</span>
-<span id="cb10-9"><a href="#cb10-9" tabindex="-1" aria-label="code-block-10-9"></a>        truncation<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb10-10"><a href="#cb10-10" tabindex="-1" aria-label="code-block-10-10"></a>        max_length<span class="op">=</span><span class="dv">256</span>,</span>
-<span id="cb10-11"><a href="#cb10-11" tabindex="-1" aria-label="code-block-10-11"></a>    )</span>
-<span id="cb10-12"><a href="#cb10-12" tabindex="-1" aria-label="code-block-10-12"></a></span>
-<span id="cb10-13"><a href="#cb10-13" tabindex="-1" aria-label="code-block-10-13"></a>tokenized_dataset <span class="op">=</span> dataset.<span class="bu">map</span>(tokenize_function, batched<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb10-14"><a href="#cb10-14" tabindex="-1" aria-label="code-block-10-14"></a>tokenized_dataset.set_format(<span class="st">"torch"</span>)</span>
-<span id="cb10-15"><a href="#cb10-15" tabindex="-1" aria-label="code-block-10-15"></a></span>
-<span id="cb10-16"><a href="#cb10-16" tabindex="-1" aria-label="code-block-10-16"></a>train_dataloader <span class="op">=</span> DataLoader(tokenized_dataset[<span class="st">"train"</span>], shuffle<span class="op">=</span><span class="va">True</span>)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" tabindex="-1" aria-label="code-block-11-1"></a><span class="co"># This particular tokenizer doesn't have a pad token, so pad with sequence tokens</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1" aria-label="code-block-11-2"></a>tokenizer.pad_token <span class="op">=</span> tokenizer.eos_token</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1" aria-label="code-block-11-3"></a></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1" aria-label="code-block-11-4"></a><span class="kw">def</span> tokenize_function(examples):</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1" aria-label="code-block-11-5"></a>    <span class="co">"""Truncate/pad to 256 tokens."""</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1" aria-label="code-block-11-6"></a>    <span class="cf">return</span> tokenizer(</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1" aria-label="code-block-11-7"></a>        examples[columns[<span class="st">"text"</span>]],</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1" aria-label="code-block-11-8"></a>        pad<span class="op">=</span><span class="st">"max_length"</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1" aria-label="code-block-11-9"></a>        truncation<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1" aria-label="code-block-11-10"></a>        max_length<span class="op">=</span><span class="dv">256</span>,</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1" aria-label="code-block-11-11"></a>    )</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1" aria-label="code-block-11-12"></a></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1" aria-label="code-block-11-13"></a>tokenized_dataset <span class="op">=</span> dataset.<span class="bu">map</span>(tokenize_function, batched<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1" aria-label="code-block-11-14"></a>tokenized_dataset.set_format(<span class="st">"torch"</span>)</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1" aria-label="code-block-11-15"></a></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1" aria-label="code-block-11-16"></a>train_dataloader <span class="op">=</span> DataLoader(tokenized_dataset[<span class="st">"train"</span>], shuffle<span class="op">=</span><span class="va">True</span>)</span></code></pre>
 </div>
 <p>A note that in addition to tokenising, this function normalizes the
 lengths of the inputs to the first 256 tokens, truncating or padding as
@@ -643,17 +659,17 @@ need to use the full text to train on.</p>
 <p>The training loop is then exactly as you would do for a typical deep
 learning model: compute the forward, get the loss, back-propagate and
 update the optimizer’s state.</p>
-<div class="codewrapper sourceCode" id="cb11">
+<div class="codewrapper sourceCode" id="cb12">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" tabindex="-1" aria-label="code-block-11-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, epochs<span class="op">+</span><span class="dv">1</span>):</span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1" aria-label="code-block-11-2"></a>    <span class="cf">for</span> batch <span class="kw">in</span> train_dataloader:</span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1" aria-label="code-block-11-3"></a>        outputs <span class="op">=</span> model(<span class="op">**</span>batch)</span>
-<span id="cb11-4"><a href="#cb11-4" tabindex="-1" aria-label="code-block-11-4"></a>        loss <span class="op">=</span> outputs.loss</span>
-<span id="cb11-5"><a href="#cb11-5" tabindex="-1" aria-label="code-block-11-5"></a>        loss.backward()</span>
-<span id="cb11-6"><a href="#cb11-6" tabindex="-1" aria-label="code-block-11-6"></a></span>
-<span id="cb11-7"><a href="#cb11-7" tabindex="-1" aria-label="code-block-11-7"></a>        optimizer.step()</span>
-<span id="cb11-8"><a href="#cb11-8" tabindex="-1" aria-label="code-block-11-8"></a>        optimizer.zero_grad()</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" tabindex="-1" aria-label="code-block-12-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, epochs<span class="op">+</span><span class="dv">1</span>):</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1" aria-label="code-block-12-2"></a>    <span class="cf">for</span> batch <span class="kw">in</span> train_dataloader:</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1" aria-label="code-block-12-3"></a>        outputs <span class="op">=</span> model(<span class="op">**</span>batch)</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1" aria-label="code-block-12-4"></a>        loss <span class="op">=</span> outputs.loss</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1" aria-label="code-block-12-5"></a>        loss.backward()</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1" aria-label="code-block-12-6"></a></span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1" aria-label="code-block-12-7"></a>        optimizer.step()</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1" aria-label="code-block-12-8"></a>        optimizer.zero_grad()</span></code></pre>
 </div>
 <p>Other LLM-related models can be trained similarly with the PyTorch
 API with appropriate modifications to the loss functions, scheduling,
@@ -664,12 +680,12 @@ way as discussed in previous sessions. The appropriate objects are given
 as arguments to Accelerate’s <code>prepare</code> function, and the
 corresponding return values are wrapped to run on the available
 hardware.</p>
-<div class="codewrapper sourceCode" id="cb12">
+<div class="codewrapper sourceCode" id="cb13">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" tabindex="-1" aria-label="code-block-12-1"></a>train_dataloader, model, optimizer <span class="op">=</span> accelerator.prepare(</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1" aria-label="code-block-12-2"></a>    train_dataloader, model, optimizer</span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1" aria-label="code-block-12-3"></a>)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" tabindex="-1" aria-label="code-block-13-1"></a>train_dataloader, model, optimizer <span class="op">=</span> accelerator.prepare(</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1" aria-label="code-block-13-2"></a>    train_dataloader, model, optimizer</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1" aria-label="code-block-13-3"></a>)</span></code></pre>
 </div>
 </div>
 <div class="section level3">
@@ -711,49 +727,49 @@ longest input in a batch.</p>
 <p>In our example, we have already normalized the entire dataset to 256
 tokens, but we could have the same effect by using a data collator
 like:</p>
-<div class="codewrapper sourceCode" id="cb13">
+<div class="codewrapper sourceCode" id="cb14">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" tabindex="-1" aria-label="code-block-13-1"></a>data_collator <span class="op">=</span> DataCollatorWithPadding(</span>
-<span id="cb13-2"><a href="#cb13-2" tabindex="-1" aria-label="code-block-13-2"></a>    tokenizer<span class="op">=</span>tokenizer,</span>
-<span id="cb13-3"><a href="#cb13-3" tabindex="-1" aria-label="code-block-13-3"></a>    padding<span class="op">=</span><span class="st">'max_length'</span>,</span>
-<span id="cb13-4"><a href="#cb13-4" tabindex="-1" aria-label="code-block-13-4"></a>    max_length<span class="op">=</span><span class="dv">256</span>,</span>
-<span id="cb13-5"><a href="#cb13-5" tabindex="-1" aria-label="code-block-13-5"></a>)</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" tabindex="-1" aria-label="code-block-14-1"></a>data_collator <span class="op">=</span> DataCollatorWithPadding(</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1" aria-label="code-block-14-2"></a>    tokenizer<span class="op">=</span>tokenizer,</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1" aria-label="code-block-14-3"></a>    padding<span class="op">=</span><span class="st">'max_length'</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1" aria-label="code-block-14-4"></a>    max_length<span class="op">=</span><span class="dv">256</span>,</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1" aria-label="code-block-14-5"></a>)</span></code></pre>
 </div>
 <p>The <code>TrainingArguments</code> class accepts information about
 the number of epochs, batch sizes, optimizer type, learning rates,
 check-pointing, logging, evaluation metrics, Accelerate parameters,
 distributed training strategies, and more.</p>
 <p>A typical configuration might look like:</p>
-<div class="codewrapper sourceCode" id="cb14">
-<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
-</h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" tabindex="-1" aria-label="code-block-14-1"></a><span class="im">from</span> transformers <span class="im">import</span> Trainer, TrainingArguments</span>
-<span id="cb14-2"><a href="#cb14-2" tabindex="-1" aria-label="code-block-14-2"></a></span>
-<span id="cb14-3"><a href="#cb14-3" tabindex="-1" aria-label="code-block-14-3"></a>training_args <span class="op">=</span> TrainingArguments(</span>
-<span id="cb14-4"><a href="#cb14-4" tabindex="-1" aria-label="code-block-14-4"></a>    output_dir<span class="op">=</span><span class="st">"./results"</span>,</span>
-<span id="cb14-5"><a href="#cb14-5" tabindex="-1" aria-label="code-block-14-5"></a>    optim<span class="op">=</span><span class="st">'adamw_torch'</span>,</span>
-<span id="cb14-6"><a href="#cb14-6" tabindex="-1" aria-label="code-block-14-6"></a>    learning_rate<span class="op">=</span><span class="fl">2e-5</span>,</span>
-<span id="cb14-7"><a href="#cb14-7" tabindex="-1" aria-label="code-block-14-7"></a>    per_device_train_batch_size<span class="op">=</span><span class="dv">16</span>,</span>
-<span id="cb14-8"><a href="#cb14-8" tabindex="-1" aria-label="code-block-14-8"></a>    per_device_eval_batch_size<span class="op">=</span><span class="dv">16</span>,</span>
-<span id="cb14-9"><a href="#cb14-9" tabindex="-1" aria-label="code-block-14-9"></a>    num_train_epochs<span class="op">=</span><span class="dv">10</span>,</span>
-<span id="cb14-10"><a href="#cb14-10" tabindex="-1" aria-label="code-block-14-10"></a>    weight_decay<span class="op">=</span><span class="fl">0.01</span>,</span>
-<span id="cb14-11"><a href="#cb14-11" tabindex="-1" aria-label="code-block-14-11"></a>)</span></code></pre>
-</div>
-<p>And then the actual training can be performed as follows:</p>
 <div class="codewrapper sourceCode" id="cb15">
 <h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" tabindex="-1" aria-label="code-block-15-1"></a>trainer <span class="op">=</span> Trainer(</span>
-<span id="cb15-2"><a href="#cb15-2" tabindex="-1" aria-label="code-block-15-2"></a>    model<span class="op">=</span>model,</span>
-<span id="cb15-3"><a href="#cb15-3" tabindex="-1" aria-label="code-block-15-3"></a>    args<span class="op">=</span>training_args,</span>
-<span id="cb15-4"><a href="#cb15-4" tabindex="-1" aria-label="code-block-15-4"></a>    train_dataset<span class="op">=</span>dataset[<span class="st">'train'</span>],</span>
-<span id="cb15-5"><a href="#cb15-5" tabindex="-1" aria-label="code-block-15-5"></a>    eval_dataset<span class="op">=</span>dataset[<span class="st">'test'</span>],</span>
-<span id="cb15-6"><a href="#cb15-6" tabindex="-1" aria-label="code-block-15-6"></a>    processing_class<span class="op">=</span>tokenizer,</span>
-<span id="cb15-7"><a href="#cb15-7" tabindex="-1" aria-label="code-block-15-7"></a>    data_collator<span class="op">=</span>data_collator,</span>
-<span id="cb15-8"><a href="#cb15-8" tabindex="-1" aria-label="code-block-15-8"></a>)</span>
-<span id="cb15-9"><a href="#cb15-9" tabindex="-1" aria-label="code-block-15-9"></a></span>
-<span id="cb15-10"><a href="#cb15-10" tabindex="-1" aria-label="code-block-15-10"></a>trainer.train()</span></code></pre>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" tabindex="-1" aria-label="code-block-15-1"></a><span class="im">from</span> transformers <span class="im">import</span> Trainer, TrainingArguments</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1" aria-label="code-block-15-2"></a></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1" aria-label="code-block-15-3"></a>training_args <span class="op">=</span> TrainingArguments(</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1" aria-label="code-block-15-4"></a>    output_dir<span class="op">=</span><span class="st">"./results"</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1" aria-label="code-block-15-5"></a>    optim<span class="op">=</span><span class="st">'adamw_torch'</span>,</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1" aria-label="code-block-15-6"></a>    learning_rate<span class="op">=</span><span class="fl">2e-5</span>,</span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1" aria-label="code-block-15-7"></a>    per_device_train_batch_size<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1" aria-label="code-block-15-8"></a>    per_device_eval_batch_size<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1" aria-label="code-block-15-9"></a>    num_train_epochs<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1" aria-label="code-block-15-10"></a>    weight_decay<span class="op">=</span><span class="fl">0.01</span>,</span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1" aria-label="code-block-15-11"></a>)</span></code></pre>
+</div>
+<p>And then the actual training can be performed as follows:</p>
+<div class="codewrapper sourceCode" id="cb16">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" tabindex="-1" aria-label="code-block-16-1"></a>trainer <span class="op">=</span> Trainer(</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1" aria-label="code-block-16-2"></a>    model<span class="op">=</span>model,</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1" aria-label="code-block-16-3"></a>    args<span class="op">=</span>training_args,</span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1" aria-label="code-block-16-4"></a>    train_dataset<span class="op">=</span>dataset[<span class="st">'train'</span>],</span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1" aria-label="code-block-16-5"></a>    eval_dataset<span class="op">=</span>dataset[<span class="st">'test'</span>],</span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1" aria-label="code-block-16-6"></a>    processing_class<span class="op">=</span>tokenizer,</span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1" aria-label="code-block-16-7"></a>    data_collator<span class="op">=</span>data_collator,</span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1" aria-label="code-block-16-8"></a>)</span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1" aria-label="code-block-16-9"></a></span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1" aria-label="code-block-16-10"></a>trainer.train()</span></code></pre>
 </div>
 <p>The <code>Trainer</code> class has Accelerate code embedded in it, so
 other than possibly setting some accelerate-related parameters on the
@@ -777,54 +793,188 @@ more nodes than you are allowed, you will see an
 your job.</p>
 <p>So for example, to run on 2 nodes with 2 GPUs, you would configure
 the SLURM batch file something like:</p>
-<div class="codewrapper sourceCode" id="cb16">
+<div class="codewrapper sourceCode" id="cb17">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" tabindex="-1" aria-label="code-block-16-1"></a><span class="co">#SBATCH --nodes=2                         # Number of Nodes</span></span>
-<span id="cb16-2"><a href="#cb16-2" tabindex="-1" aria-label="code-block-16-2"></a><span class="co">#SBATCH --gpus=2                          # GPUs per Node</span></span>
-<span id="cb16-3"><a href="#cb16-3" tabindex="-1" aria-label="code-block-16-3"></a><span class="co">#SBATCH --ntasks=2                        # One per Node</span></span>
-<span id="cb16-4"><a href="#cb16-4" tabindex="-1" aria-label="code-block-16-4"></a><span class="co">#SBATCH --gpus-per-task=2                 # Every task to use two GPUs</span></span>
-<span id="cb16-5"><a href="#cb16-5" tabindex="-1" aria-label="code-block-16-5"></a><span class="co">#SBATCH --cpus-per-task=2                 # Every task to use two CPUs</span></span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" tabindex="-1" aria-label="code-block-17-1"></a><span class="co">#SBATCH --nodes=2                         # Number of Nodes</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1" aria-label="code-block-17-2"></a><span class="co">#SBATCH --gpus=2                          # GPUs per Node</span></span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1" aria-label="code-block-17-3"></a><span class="co">#SBATCH --ntasks=2                        # One per Node</span></span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1" aria-label="code-block-17-4"></a><span class="co">#SBATCH --gpus-per-task=2                 # Every task to use two GPUs</span></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1" aria-label="code-block-17-5"></a><span class="co">#SBATCH --cpus-per-task=2                 # Every task to use two CPUs</span></span></code></pre>
 </div>
 <p>Note that normally you would use all GPUs on a single node before you
 would move to multiple nodes.</p>
 <p>You also need to have the <code>python</code>, <code>cuda</code> and
 <code>openmpi</code> modules loaded.</p>
-<div class="codewrapper sourceCode" id="cb17">
-<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
-</h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" tabindex="-1" aria-label="code-block-17-1"></a><span class="ex">module</span> load python</span>
-<span id="cb17-2"><a href="#cb17-2" tabindex="-1" aria-label="code-block-17-2"></a><span class="ex">module</span> load cuda</span>
-<span id="cb17-3"><a href="#cb17-3" tabindex="-1" aria-label="code-block-17-3"></a><span class="ex">module</span> load openmpi</span></code></pre>
-</div>
-<p>Beyond SLURM configuration, Accelerate needs to know which node is
-the “main” (rank 0) node’s IP address, so we have to work that out from
-the SLURM environment:</p>
 <div class="codewrapper sourceCode" id="cb18">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" tabindex="-1" aria-label="code-block-18-1"></a><span class="va">head_node_ip</span><span class="op">=</span><span class="va">$(</span><span class="ex">scontrol</span> show hostnames <span class="va">$SLURM_JOB_NODELIST</span> <span class="kw">|</span> <span class="fu">head</span> <span class="at">-n</span> 1<span class="va">)</span></span>
-<span id="cb18-2"><a href="#cb18-2" tabindex="-1" aria-label="code-block-18-2"></a><span class="bu">echo</span> <span class="st">"Head node IP: </span><span class="va">$head_node_ip</span><span class="st">"</span></span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" tabindex="-1" aria-label="code-block-18-1"></a><span class="ex">module</span> load python</span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1" aria-label="code-block-18-2"></a><span class="ex">module</span> load cuda</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1" aria-label="code-block-18-3"></a><span class="ex">module</span> load openmpi</span></code></pre>
 </div>
-<p>This then allows us to use <code>accelerate</code> to run the
-training:</p>
+<p>And as with regular sbatch scripts, you need to use <code>srun</code>
+to distribute work across multiple tasks. However
+<code>srun accelerate launch</code> doesn’t “just work” for parallel
+training.</p>
+<p>Accelerate was written with the particular use-case of working with a
+collection of nodes that is known before the training is run, and so can
+be passed via configuration files on each node. This, unfortunately
+doesn’t match SLURM or other schedulers where the nodes that are being
+used aren’t specified until the code is actually executed. This matters
+because multi-GPU <code>accelerate launch</code> commands need to know
+the address of the main node, and the rank (or index) of the current
+node in the set of worker nodes and cannot automatically detect these
+from the environment.</p>
+<p>So this means that <code>accelerate launch</code> can’t be run
+directly from the sbatch file: a shim is needed that collects the needed
+information and executes <code>accelerate launch</code> as a subprocess
+with the appropriate information filled in from the environment.</p>
+<p>This could be done as a one-line command where <code>srun</code>
+executes <code>bash -c</code> on each node with an appropriately
+parametrized command; but getting the quoting right to make everything
+work is tricky. A secondary script works better.</p>
+<p>The rank of each process can be found in the
+<code>SLURM_PROCID</code> environment variable. To extract that value as
+a string in Python, you’d use.</p>
 <div class="codewrapper sourceCode" id="cb19">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" tabindex="-1" aria-label="code-block-19-1"></a><span class="im">import</span> os</span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1" aria-label="code-block-19-2"></a></span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1" aria-label="code-block-19-3"></a>proc_id <span class="op">=</span> os.environ.get(<span class="st">"SLURM_PROCID"</span>, <span class="st">"0"</span>)</span></code></pre>
+</div>
+<p>To work out the list of nodes you need to use the
+<code>SLURM_JOB_NODELIST</code> environment variable, but it often
+provides the names in a more compact form, such as
+<code>coral[01,02]</code>. to expand them out, you need to use the
+<code>scontrol show hostnames</code> command:</p>
+<div class="codewrapper sourceCode" id="cb20">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" tabindex="-1" aria-label="code-block-19-1"></a><span class="ex">accelerate</span> launch <span class="at">--multi-gpu</span> <span class="at">--num_processes</span> 4 <span class="at">--num_machines</span> 2 <span class="at">--main_process_ip</span> <span class="va">$head_node_ip</span> <span class="at">--main_process_port</span> 29500 llm_fine_tuning.py</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" tabindex="-1" aria-label="code-block-20-1"></a><span class="ex">scontrol</span> show hostnames coral<span class="pp">[</span><span class="ss">01,02</span><span class="pp">]</span></span></code></pre>
+</div>
+<p>will print <code>coral01 coral02</code> as output, so
+<code>scontrol show hostnames $SLURM_JOB_NODELIST</code> would give the
+list in bash.</p>
+<p>In Python, this would look like:</p>
+<div class="codewrapper sourceCode" id="cb21">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" tabindex="-1" aria-label="code-block-21-1"></a><span class="im">import</span> subprocess</span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1" aria-label="code-block-21-2"></a></span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1" aria-label="code-block-21-3"></a>nodelist <span class="op">=</span> os.environ.get(<span class="st">"SLURM_JOB_NODELIST"</span>)</span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1" aria-label="code-block-21-4"></a>output <span class="op">=</span> subprocess.run(</span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1" aria-label="code-block-21-5"></a>    [<span class="st">"scontrol"</span>, <span class="st">"show"</span>, <span class="st">"hostnames"</span>, nodelist],</span>
+<span id="cb21-6"><a href="#cb21-6" tabindex="-1" aria-label="code-block-21-6"></a>    capture_output<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1" aria-label="code-block-21-7"></a>    encoding<span class="op">=</span><span class="st">'utf-8'</span>,</span>
+<span id="cb21-8"><a href="#cb21-8" tabindex="-1" aria-label="code-block-21-8"></a>)</span>
+<span id="cb21-9"><a href="#cb21-9" tabindex="-1" aria-label="code-block-21-9"></a>full_nodelist <span class="op">=</span> output.stdout.split()</span></code></pre>
+</div>
+<p>The main node is then the first item of that list.</p>
+<p>Putting all of this together, along with code to run the actual
+accelerate command would look something like this in Python:</p>
+<div class="codewrapper sourceCode" id="cb22">
+<h3 class="code-label">PYTHON<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode python" tabindex="0"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" tabindex="-1" aria-label="code-block-22-1"></a><span class="im">import</span> os</span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1" aria-label="code-block-22-2"></a><span class="im">import</span> subprocess</span>
+<span id="cb22-3"><a href="#cb22-3" tabindex="-1" aria-label="code-block-22-3"></a></span>
+<span id="cb22-4"><a href="#cb22-4" tabindex="-1" aria-label="code-block-22-4"></a>nodelist <span class="op">=</span> os.environ.get(<span class="st">"SLURM_JOB_NODELIST"</span>, socket.gethostname().split(<span class="st">'.'</span>)[</span>
+<span id="cb22-5"><a href="#cb22-5" tabindex="-1" aria-label="code-block-22-5"></a><span class="dv">0</span>])</span>
+<span id="cb22-6"><a href="#cb22-6" tabindex="-1" aria-label="code-block-22-6"></a>output <span class="op">=</span> subprocess.run(</span>
+<span id="cb22-7"><a href="#cb22-7" tabindex="-1" aria-label="code-block-22-7"></a>    [<span class="st">"scontrol"</span>, <span class="st">"show"</span>, <span class="st">"hostnames"</span>, nodelist],</span>
+<span id="cb22-8"><a href="#cb22-8" tabindex="-1" aria-label="code-block-22-8"></a>    capture_output<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb22-9"><a href="#cb22-9" tabindex="-1" aria-label="code-block-22-9"></a>    encoding<span class="op">=</span><span class="st">'utf-8'</span>,</span>
+<span id="cb22-10"><a href="#cb22-10" tabindex="-1" aria-label="code-block-22-10"></a>)</span>
+<span id="cb22-11"><a href="#cb22-11" tabindex="-1" aria-label="code-block-22-11"></a>full_nodelist <span class="op">=</span> output.stdout.split()</span>
+<span id="cb22-12"><a href="#cb22-12" tabindex="-1" aria-label="code-block-22-12"></a>main_node <span class="op">=</span> full_nodelist[<span class="dv">0</span>]</span>
+<span id="cb22-13"><a href="#cb22-13" tabindex="-1" aria-label="code-block-22-13"></a></span>
+<span id="cb22-14"><a href="#cb22-14" tabindex="-1" aria-label="code-block-22-14"></a>proc_id <span class="op">=</span> os.environ.get(<span class="st">"SLURM_PROCID"</span>, <span class="st">"0"</span>)</span>
+<span id="cb22-15"><a href="#cb22-15" tabindex="-1" aria-label="code-block-22-15"></a></span>
+<span id="cb22-16"><a href="#cb22-16" tabindex="-1" aria-label="code-block-22-16"></a>subprocess.run(</span>
+<span id="cb22-17"><a href="#cb22-17" tabindex="-1" aria-label="code-block-22-17"></a>    [</span>
+<span id="cb22-18"><a href="#cb22-18" tabindex="-1" aria-label="code-block-22-18"></a>        <span class="st">"accelerate"</span>,</span>
+<span id="cb22-19"><a href="#cb22-19" tabindex="-1" aria-label="code-block-22-19"></a>        <span class="st">"launch"</span>,</span>
+<span id="cb22-20"><a href="#cb22-20" tabindex="-1" aria-label="code-block-22-20"></a>        <span class="st">"--multi-gpu"</span>,</span>
+<span id="cb22-21"><a href="#cb22-21" tabindex="-1" aria-label="code-block-22-21"></a>        <span class="st">"--num_processes"</span>,</span>
+<span id="cb22-22"><a href="#cb22-22" tabindex="-1" aria-label="code-block-22-22"></a>        <span class="st">"2"</span>,</span>
+<span id="cb22-23"><a href="#cb22-23" tabindex="-1" aria-label="code-block-22-23"></a>        <span class="st">"--num_machines"</span>,</span>
+<span id="cb22-24"><a href="#cb22-24" tabindex="-1" aria-label="code-block-22-24"></a>        <span class="st">"2"</span>,</span>
+<span id="cb22-25"><a href="#cb22-25" tabindex="-1" aria-label="code-block-22-25"></a>        <span class="st">"--main_process_ip"</span>,</span>
+<span id="cb22-26"><a href="#cb22-26" tabindex="-1" aria-label="code-block-22-26"></a>        main_node,</span>
+<span id="cb22-27"><a href="#cb22-27" tabindex="-1" aria-label="code-block-22-27"></a>        <span class="st">"--main_process_port"</span>,</span>
+<span id="cb22-28"><a href="#cb22-28" tabindex="-1" aria-label="code-block-22-28"></a>        <span class="st">"29500"</span>,</span>
+<span id="cb22-29"><a href="#cb22-29" tabindex="-1" aria-label="code-block-22-29"></a>        <span class="st">"--machine_rank"</span>,</span>
+<span id="cb22-30"><a href="#cb22-30" tabindex="-1" aria-label="code-block-22-30"></a>        proc_id,</span>
+<span id="cb22-31"><a href="#cb22-31" tabindex="-1" aria-label="code-block-22-31"></a>        <span class="st">"llm_fine_tuning.py"</span>,</span>
+<span id="cb22-32"><a href="#cb22-32" tabindex="-1" aria-label="code-block-22-32"></a>    ],</span>
+<span id="cb22-33"><a href="#cb22-33" tabindex="-1" aria-label="code-block-22-33"></a>)</span></code></pre>
+</div>
+<p>A more general, improved version of this script can be found in the
+code examples.</p>
+<p>If we put that into a Python script called
+<code>run_accelerate.py</code> then our sbatch file would look like:</p>
+<div class="codewrapper sourceCode" id="cb23">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" tabindex="-1" aria-label="code-block-23-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb23-2"><a href="#cb23-2" tabindex="-1" aria-label="code-block-23-2"></a></span>
+<span id="cb23-3"><a href="#cb23-3" tabindex="-1" aria-label="code-block-23-3"></a><span class="co">#SBATCH --job-name=multi-node-llm-example</span></span>
+<span id="cb23-4"><a href="#cb23-4" tabindex="-1" aria-label="code-block-23-4"></a><span class="co">#SBATCH --partition=i7_h200</span></span>
+<span id="cb23-5"><a href="#cb23-5" tabindex="-1" aria-label="code-block-23-5"></a><span class="co">#SBATCH --time=00:10:00</span></span>
+<span id="cb23-6"><a href="#cb23-6" tabindex="-1" aria-label="code-block-23-6"></a><span class="co">#SBATCH --nodes=2</span></span>
+<span id="cb23-7"><a href="#cb23-7" tabindex="-1" aria-label="code-block-23-7"></a><span class="co">#SBATCH --ntasks-per-node=1</span></span>
+<span id="cb23-8"><a href="#cb23-8" tabindex="-1" aria-label="code-block-23-8"></a><span class="co">#SBATCH --gpus-per-task=2</span></span>
+<span id="cb23-9"><a href="#cb23-9" tabindex="-1" aria-label="code-block-23-9"></a><span class="co">#SBATCH --cpus-per-task=2</span></span>
+<span id="cb23-10"><a href="#cb23-10" tabindex="-1" aria-label="code-block-23-10"></a></span>
+<span id="cb23-11"><a href="#cb23-11" tabindex="-1" aria-label="code-block-23-11"></a></span>
+<span id="cb23-12"><a href="#cb23-12" tabindex="-1" aria-label="code-block-23-12"></a><span class="co"># Load required modules</span></span>
+<span id="cb23-13"><a href="#cb23-13" tabindex="-1" aria-label="code-block-23-13"></a><span class="ex">module</span> load python</span>
+<span id="cb23-14"><a href="#cb23-14" tabindex="-1" aria-label="code-block-23-14"></a><span class="ex">module</span> load cuda</span>
+<span id="cb23-15"><a href="#cb23-15" tabindex="-1" aria-label="code-block-23-15"></a></span>
+<span id="cb23-16"><a href="#cb23-16" tabindex="-1" aria-label="code-block-23-16"></a><span class="co"># Activate Python virtual environment</span></span>
+<span id="cb23-17"><a href="#cb23-17" tabindex="-1" aria-label="code-block-23-17"></a><span class="bu">source</span> <span class="va">$VENV_NAME</span>/bin/activate</span>
+<span id="cb23-18"><a href="#cb23-18" tabindex="-1" aria-label="code-block-23-18"></a></span>
+<span id="cb23-19"><a href="#cb23-19" tabindex="-1" aria-label="code-block-23-19"></a><span class="co"># Set any environment variables or configuration options</span></span>
+<span id="cb23-20"><a href="#cb23-20" tabindex="-1" aria-label="code-block-23-20"></a><span class="bu">export</span> <span class="va">PYTHONUNBUFFERED</span><span class="op">=</span>1</span>
+<span id="cb23-21"><a href="#cb23-21" tabindex="-1" aria-label="code-block-23-21"></a></span>
+<span id="cb23-22"><a href="#cb23-22" tabindex="-1" aria-label="code-block-23-22"></a><span class="co"># Move to job directory</span></span>
+<span id="cb23-23"><a href="#cb23-23" tabindex="-1" aria-label="code-block-23-23"></a><span class="bu">cd</span> <span class="va">$SLURM_SUBMIT_DIR</span></span>
+<span id="cb23-24"><a href="#cb23-24" tabindex="-1" aria-label="code-block-23-24"></a></span>
+<span id="cb23-25"><a href="#cb23-25" tabindex="-1" aria-label="code-block-23-25"></a><span class="co"># Run the Python script</span></span>
+<span id="cb23-26"><a href="#cb23-26" tabindex="-1" aria-label="code-block-23-26"></a><span class="ex">srun</span> python run_accelerate.py</span></code></pre>
 </div>
 <div class="section level3">
-<h3 id="types-of-distributed-training">Types of Distributed Training<a class="anchor" aria-label="anchor" href="#types-of-distributed-training"></a>
+<h3 id="large-models">Large Models<a class="anchor" aria-label="anchor" href="#large-models"></a>
 </h3>
+<p>For large models, you are likely to run out of CPU or GPU memory. If
+you run out of CPU memory, you can increase the amount of memory
+available to each task via <code>#SBATCH</code> commands, such as:</p>
+<div class="codewrapper sourceCode" id="cb24">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" tabindex="-1" aria-label="code-block-24-1"></a><span class="co">#SBATCH --mem-per-cpu=49000M</span></span></code></pre>
+</div>
 <p>By default, multi-GPU training uses a data parallel approach to
-training. This is fine for small models, such as the one we are using
-here. However for large models, you are likely to run out of GPU memory.
-In this case you want to switch to fully-sharded data parallel (FSDP)
-which splits the model layers over multiple GPUs.</p>
+training. If your model is larger than the available GPU memory you will
+need to switch to a sharded approach, such as fully-sharded data
+parallel (FSDP), which splits the model layers over multiple GPUs.</p>
 <p>To enable FSDP with Accelerate you have to specify
-<code>--use_fsdp</code> in the command-line. There are <a href="https://huggingface.co/docs/accelerate/en/package_reference/cli" class="external-link">a
+<code>--use_fsdp</code> in the command-line instead of
+<code>--multi-gpu</code>. There are <a href="https://huggingface.co/docs/accelerate/en/package_reference/cli" class="external-link">a
 number of additional parameters</a> that you can specify to control the
 way that layers and weights are distributed.</p>
+<p>The key restriction on automating the FSDP config is that Accelerate
+needs to be able to tell which layers are best for moving to different
+nodes or sharding via the <code>--fsdp_auto_wrap_policy</code>. The
+default is to use <code>TRANSFORMER_BASED_WRAP</code> which infers the
+important layers by class, but for newer or non-standard architectures
+may need to be told the appropriate classes to consider. Alternatively
+you can use <code>SIZE_BASED_WRAP</code> but then you need to specify
+<code>--fsdp_min_num_params</code> to determine how big a layer needs to
+be before it can be split amongst the GPUs (the default is 100
+million).</p>
 <!--
 Place links that you need to refer to multiple times across pages here. Delete
 any links that you are not going to use.
@@ -832,7 +982,7 @@ any links that you are not going to use.
 </div>
 </section></section><section id="aio-llm_fine_tuning"><p>Content from <a href="llm_fine_tuning.html">Fine-Tuning an LLM on Iridis X</a></p>
 <hr>
-<p>Last updated on 2026-10-29 |
+<p>Last updated on 2026-11-06 |
 
         <a href="https://github.com/carpentries/workbench-template-rmd/edit/main/episodes/llm_fine_tuning.md" class="external-link">Edit this page <i aria-hidden="true" data-feather="edit"></i></a></p>
 <p>Estimated time: <i aria-hidden="true" data-feather="clock"></i> 12 minutes</p>
@@ -847,7 +997,7 @@ any links that you are not going to use.
 <div class="inner">
 <h3 class="card-title">Questions</h3>
 <ul>
-<li>How do I fine-tune a large-language model on Iridis?</li>
+<li>How do I fine-tune a large language model on Iridis?</li>
 <li>How do I use multiple Iridis X nodes with SLURM?</li>
 </ul>
 </div>
@@ -857,8 +1007,9 @@ any links that you are not going to use.
 <div class="card-body">
 <div class="inner bordered">
 <h3 class="card-title">Objectives</h3>
-<ul><li>
-</li></ul>
+<ul>
+<li>Run an LLM fine tuning task on Iridis.</li>
+</ul>
 </div>
 </div>
 </div>
@@ -922,6 +1073,18 @@ a classification exercise.</p>
 <span id="cb3-5"><a href="#cb3-5" tabindex="-1" aria-label="code-block-3-5"></a>    torch_dtype<span class="op">=</span>torch.float32,</span>
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1" aria-label="code-block-3-6"></a>)</span></code></pre>
 </div>
+<p><strong>Important</strong> - Ensure that you do not have any
+Accelerate default configuration files in your path, as it may interfere
+with the operation of the <code>accelerate launch</code> commands.</p>
+<p>In particular, check to see if
+<code>~/.cache/huggingface/accelerate/default_config.yaml</code> exists,
+and if it does, remove it:</p>
+<div class="codewrapper sourceCode" id="cb4">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a><span class="fu">ls</span> ~/.cache/huggingface/accelerate/</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1" aria-label="code-block-4-2"></a><span class="fu">rm</span> ~/.cache/huggingface/accelerate/default_config.yaml</span></code></pre>
+</div>
 <div id="run-the-fine-tuning-locally" class="callout challenge">
 <div class="callout-square">
 <i class="callout-icon" data-feather="zap"></i>
@@ -931,10 +1094,10 @@ a classification exercise.</p>
 <h3 class="callout-title">Run the fine-tuning locally</h3>
 <div class="callout-content">
 <p>To fine-tune the model, you just need to run the script:</p>
-<div class="codewrapper sourceCode" id="cb4">
+<div class="codewrapper sourceCode" id="cb5">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a><span class="ex">python</span> llm_fine_tuning.py</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a><span class="ex">python</span> llm_fine_tuning.py</span></code></pre>
 </div>
 </div>
 </div>
@@ -957,26 +1120,26 @@ need internet access.</p>
 <p>Login to the Iridis X login node
 <code>loginX001.iridis.soton.ac.uk</code>. The bash command looks
 something like:</p>
-<div class="codewrapper sourceCode" id="cb5">
+<div class="codewrapper sourceCode" id="cb6">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a><span class="fu">ssh</span> loginX001.iridis.soton.ac.uk</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a><span class="fu">ssh</span> loginX001.iridis.soton.ac.uk</span></code></pre>
 </div>
 <p>Once logged in, the steps to install the software and model are
 largely the same, however we need to remember to load the Python and
 CUDA module so that we have access to Python and everything installs
 correctly:</p>
-<div class="codewrapper sourceCode" id="cb6">
+<div class="codewrapper sourceCode" id="cb7">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a><span class="ex">module</span> load python</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1" aria-label="code-block-6-2"></a><span class="ex">module</span> load cuda</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1" aria-label="code-block-6-3"></a><span class="fu">git</span> clone https://github.com/Southampton-RSG-Training/byte-sized-rse-llm-fine-tuning-example.git</span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1" aria-label="code-block-6-4"></a><span class="bu">cd</span> byte-sized-rse-llm-fine-tuning-example</span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1" aria-label="code-block-6-5"></a><span class="ex">python3.14</span> <span class="at">-m</span> venv venv</span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1" aria-label="code-block-6-6"></a><span class="bu">source</span> venv/bin/activate</span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1" aria-label="code-block-6-7"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1" aria-label="code-block-6-8"></a><span class="ex">python</span> llm_download.py</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a><span class="ex">module</span> load python</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1" aria-label="code-block-7-2"></a><span class="ex">module</span> load cuda</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1" aria-label="code-block-7-3"></a><span class="fu">git</span> clone https://github.com/Southampton-RSG-Training/byte-sized-rse-llm-fine-tuning-example.git</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1" aria-label="code-block-7-4"></a><span class="bu">cd</span> byte-sized-rse-llm-fine-tuning-example</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1" aria-label="code-block-7-5"></a><span class="ex">python3.14</span> <span class="at">-m</span> venv venv</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1" aria-label="code-block-7-6"></a><span class="bu">source</span> venv/bin/activate</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1" aria-label="code-block-7-7"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1" aria-label="code-block-7-8"></a><span class="ex">python</span> llm_download.py</span></code></pre>
 </div>
 </div>
 </div>
@@ -996,10 +1159,10 @@ data parallel configuration for <code>l4</code>.</p>
 <div class="callout-content">
 <p>After this session is over, at your leisure, you can try running the
 single-node configuration on <code>l4</code>:</p>
-<div class="codewrapper sourceCode" id="cb7">
+<div class="codewrapper sourceCode" id="cb8">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a><span class="ex">sbatch</span> single-node-l4.sh</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1" aria-label="code-block-8-1"></a><span class="ex">sbatch</span> single-node-l4.sh</span></code></pre>
 </div>
 </div>
 </div>
@@ -1059,8 +1222,8 @@ any links that you are not going to use.
   "url": "https://carpentries.github.io/workbench-template-rmd/instructor/aio.html",
   "identifier": "https://carpentries.github.io/workbench-template-rmd/instructor/aio.html",
   "dateCreated": "2026-10-19",
-  "dateModified": "2026-11-03",
-  "datePublished": "2026-11-03"
+  "dateModified": "2026-11-06",
+  "datePublished": "2026-11-06"
 }
 
   </script><script>

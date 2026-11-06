@@ -306,7 +306,7 @@
       </div>
     </nav><main id="main-content" class="main-content"><div class="container lesson-content">
         <h1>Fine-Tuning an LLM on Iridis X</h1>
-        <p>Last updated on 2026-10-29 |
+        <p>Last updated on 2026-11-06 |
 
         <a href="https://github.com/carpentries/workbench-template-rmd/edit/main/episodes/llm_fine_tuning.md" class="external-link">Edit this page <i aria-hidden="true" data-feather="edit"></i></a></p>
 
@@ -325,7 +325,7 @@
 <div class="card-body">
 <div class="inner">
 <h3 class="card-title">Questions</h3>
-<ul><li>How do I fine-tune a large-language model on Iridis?</li>
+<ul><li>How do I fine-tune a large language model on Iridis?</li>
 <li>How do I use multiple Iridis X nodes with SLURM?</li>
 </ul></div>
 </div>
@@ -334,8 +334,8 @@
 <div class="card-body">
 <div class="inner bordered">
 <h3 class="card-title">Objectives</h3>
-<ul><li>
-</li></ul></div>
+<ul><li>Run an LLM fine tuning task on Iridis.</li>
+</ul></div>
 </div>
 </div>
 </div>
@@ -396,6 +396,18 @@ a classification exercise.</p>
 <span id="cb3-5"><a href="#cb3-5" tabindex="-1" aria-label="code-block-3-5"></a>    torch_dtype<span class="op">=</span>torch.float32,</span>
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1" aria-label="code-block-3-6"></a>)</span></code></pre>
 </div>
+<p><strong>Important</strong> - Ensure that you do not have any
+Accelerate default configuration files in your path, as it may interfere
+with the operation of the <code>accelerate launch</code> commands.</p>
+<p>In particular, check to see if
+<code>~/.cache/huggingface/accelerate/default_config.yaml</code> exists,
+and if it does, remove it:</p>
+<div class="codewrapper sourceCode" id="cb4">
+<h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
+</h3>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a><span class="fu">ls</span> ~/.cache/huggingface/accelerate/</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1" aria-label="code-block-4-2"></a><span class="fu">rm</span> ~/.cache/huggingface/accelerate/default_config.yaml</span></code></pre>
+</div>
 <div id="run-the-fine-tuning-locally" class="callout challenge">
 <div class="callout-square">
 <i class="callout-icon" data-feather="zap"></i>
@@ -405,10 +417,10 @@ a classification exercise.</p>
 <h3 class="callout-title">Run the fine-tuning locally</h3>
 <div class="callout-content">
 <p>To fine-tune the model, you just need to run the script:</p>
-<div class="codewrapper sourceCode" id="cb4">
+<div class="codewrapper sourceCode" id="cb5">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1" aria-label="code-block-4-1"></a><span class="ex">python</span> llm_fine_tuning.py</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a><span class="ex">python</span> llm_fine_tuning.py</span></code></pre>
 </div>
 </div>
 </div>
@@ -430,26 +442,26 @@ need internet access.</p>
 <p>Login to the Iridis X login node
 <code>loginX001.iridis.soton.ac.uk</code>. The bash command looks
 something like:</p>
-<div class="codewrapper sourceCode" id="cb5">
+<div class="codewrapper sourceCode" id="cb6">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1" aria-label="code-block-5-1"></a><span class="fu">ssh</span> loginX001.iridis.soton.ac.uk</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a><span class="fu">ssh</span> loginX001.iridis.soton.ac.uk</span></code></pre>
 </div>
 <p>Once logged in, the steps to install the software and model are
 largely the same, however we need to remember to load the Python and
 CUDA module so that we have access to Python and everything installs
 correctly:</p>
-<div class="codewrapper sourceCode" id="cb6">
+<div class="codewrapper sourceCode" id="cb7">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1" aria-label="code-block-6-1"></a><span class="ex">module</span> load python</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1" aria-label="code-block-6-2"></a><span class="ex">module</span> load cuda</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1" aria-label="code-block-6-3"></a><span class="fu">git</span> clone https://github.com/Southampton-RSG-Training/byte-sized-rse-llm-fine-tuning-example.git</span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1" aria-label="code-block-6-4"></a><span class="bu">cd</span> byte-sized-rse-llm-fine-tuning-example</span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1" aria-label="code-block-6-5"></a><span class="ex">python3.14</span> <span class="at">-m</span> venv venv</span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1" aria-label="code-block-6-6"></a><span class="bu">source</span> venv/bin/activate</span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1" aria-label="code-block-6-7"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1" aria-label="code-block-6-8"></a><span class="ex">python</span> llm_download.py</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a><span class="ex">module</span> load python</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1" aria-label="code-block-7-2"></a><span class="ex">module</span> load cuda</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1" aria-label="code-block-7-3"></a><span class="fu">git</span> clone https://github.com/Southampton-RSG-Training/byte-sized-rse-llm-fine-tuning-example.git</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1" aria-label="code-block-7-4"></a><span class="bu">cd</span> byte-sized-rse-llm-fine-tuning-example</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1" aria-label="code-block-7-5"></a><span class="ex">python3.14</span> <span class="at">-m</span> venv venv</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1" aria-label="code-block-7-6"></a><span class="bu">source</span> venv/bin/activate</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1" aria-label="code-block-7-7"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1" aria-label="code-block-7-8"></a><span class="ex">python</span> llm_download.py</span></code></pre>
 </div>
 </div>
 </div>
@@ -469,10 +481,10 @@ data parallel configuration for <code>l4</code>.</p>
 <div class="callout-content">
 <p>After this session is over, at your leisure, you can try running the
 single-node configuration on <code>l4</code>:</p>
-<div class="codewrapper sourceCode" id="cb7">
+<div class="codewrapper sourceCode" id="cb8">
 <h3 class="code-label">BASH<i aria-hidden="true" data-feather="chevron-left"></i><i aria-hidden="true" data-feather="chevron-right"></i>
 </h3>
-<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1" aria-label="code-block-7-1"></a><span class="ex">sbatch</span> single-node-l4.sh</span></code></pre>
+<pre class="sourceCode bash" tabindex="0"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1" aria-label="code-block-8-1"></a><span class="ex">sbatch</span> single-node-l4.sh</span></code></pre>
 </div>
 </div>
 </div>
@@ -542,8 +554,8 @@ any links that you are not going to use.
   "url": "https://carpentries.github.io/workbench-template-rmd/llm_fine_tuning.html",
   "identifier": "https://carpentries.github.io/workbench-template-rmd/llm_fine_tuning.html",
   "dateCreated": "2026-10-19",
-  "dateModified": "2026-10-29",
-  "datePublished": "2026-11-03"
+  "dateModified": "2026-11-06",
+  "datePublished": "2026-11-06"
 }
 
   </script><script>
