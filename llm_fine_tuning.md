@@ -6,14 +6,14 @@ exercises: 2 # exercise time in minutes
 
 :::::::::::::::::::::::::::::::::::::: questions
 
-- How do I fine-tune a large-language model on Iridis?
+- How do I fine-tune a large language model on Iridis?
 - How do I use multiple Iridis X nodes with SLURM?
 
 ::::::::::::::::::::::::::::::::::::::::::::::::
 
 ::::::::::::::::::::::::::::::::::::: objectives
 
--
+- Run an LLM fine tuning task on Iridis.
 
 ::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -55,6 +55,15 @@ model = AutoModelForSequenceClassification.from_pretrained(
     num_labels=num_labels,
     torch_dtype=torch.float32,
 )
+```
+
+**Important** - Ensure that you do not have any Accelerate default configuration files in your path, as it may interfere with the operation of the `accelerate launch` commands.
+
+In particular, check to see if `~/.cache/huggingface/accelerate/default_config.yaml` exists, and if it does, remove it:
+
+``` bash
+ls ~/.cache/huggingface/accelerate/
+rm ~/.cache/huggingface/accelerate/default_config.yaml
 ```
 
 ::: challenge

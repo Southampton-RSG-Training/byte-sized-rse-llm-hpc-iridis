@@ -7,12 +7,19 @@ exercises: 2 # exercise time in minutes
 :::::::::::::::::::::::::::::::::::::: questions
 
 - How do I work with large language models in research?
+- How do I fine-tune an LLM to perform various tasks.
+- How do I train an LLM using multiple GPUs.
+- What challenges are there when working with large models.
 
 ::::::::::::::::::::::::::::::::::::::::::::::::
 
 ::::::::::::::::::::::::::::::::::::: objectives
 
-- Learn how to use the Transformers library to load models and perform inference.
+- Use the Transformers library to load models and perform inference.
+- Understand typical data preparation and tokenization steps.
+- Fine-tune an LLM for classification.
+- Be able to distribute training over multiple GPUs and nodes.
+- Be able to handle models that are larger than available GPU memory by sharding across multiple GPUs.
 
 ::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -60,6 +67,14 @@ While Transformers integrates closely with the HuggingFace repositories, these m
 ### Datasets
 
 The Datasets library provides access to training data in various formats suitable for use with particular tasks, primarily for use with Transformers, but also potentially with other tools and libraries as well.
+
+The `datasets.load_dataset` command allows you to load a dataset from either a local directory or remotely from HuggingFace:
+
+``` python
+from datasets import load_dataset
+
+dataset = load_dataset("yelp/yelp_review_full")
+```
 
 ### Inference
 
@@ -123,8 +138,7 @@ Similarly, when fine-tuning, most often a foundation model is the most appropria
 
 ### Alternative Frameworks
 
-We're using Transformers in this course because they give an API that is flexible and permits training, and integrates well with PyTorch.  However, this flexibility comes at some cost in terms of speed and resources. If all you need is inference on open weights models, there are libraries such as [vLLM](https://vllm.ai/) and [TensorRT LLM](https://developer.nvidia.com/tensorrt-llm) that give better performance for pure inference tasks.  However these may or may not work as well across multiple nodes on Iridis.
-
+We're using Transformers in this course because they give an API that is flexible and permits training, and integrates well with PyTorch.  However, this flexibility comes at some cost in terms of speed and resources. If all you need is inference on open weights models, there are libraries such as [vLLM](https://vllm.ai/) and [TensorRT LLM](https://developer.nvidia.com/tensorrt-llm) that give better performance for pure inference tasks.
 :::
 
 ### Fine-Tuning
@@ -276,22 +290,128 @@ module load cuda
 module load openmpi
 ```
 
-Beyond SLURM configuration, Accelerate needs to know which node is the "main" (rank 0) node's IP address, so we have to work that out from the SLURM environment:
+And as with regular sbatch scripts, you need to use `srun` to distribute work across multiple tasks. However `srun accelerate launch` doesn't "just work" for parallel training.
 
-``` bash
-head_node_ip=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-echo "Head node IP: $head_node_ip"
+Accelerate was written with the particular use-case of working with a collection of nodes that is known before the training is run, and so can be passed via configuration files on each node. This, unfortunately doesn't match SLURM or other schedulers where the nodes that are being used aren't specified until the code is actually executed.  This matters because multi-GPU `accelerate launch` commands need to know the address of the main node, and the rank (or index) of the current node in the set of worker nodes and cannot automatically detect these from the environment.
+
+So this means that `accelerate launch` can't be run directly from the sbatch file: a shim is needed that collects the needed information and executes `accelerate launch` as a subprocess with the appropriate information filled in from the environment.
+
+This could be done as a one-line command where `srun` executes `bash -c` on each node with an appropriately parametrized command; but getting the quoting right to make everything work is tricky. A secondary script works better.
+
+The rank of each process can be found in the `SLURM_PROCID` environment variable. To extract that value as a string in Python, you'd use.
+```python
+import os
+
+proc_id = os.environ.get("SLURM_PROCID", "0")
 ```
 
-This then allows us to use `accelerate` to run the training:
+To work out the list of nodes you need to use the `SLURM_JOB_NODELIST` environment variable, but it often provides the names in a more compact form, such as `coral[01,02]`. to expand them out, you need to use the `scontrol show hostnames` command:
 
-``` bash
-accelerate launch --multi-gpu --num_processes 4 --num_machines 2 --main_process_ip $head_node_ip --main_process_port 29500 llm_fine_tuning.py
+```bash
+scontrol show hostnames coral[01,02]
 ```
 
-### Types of Distributed Training
+will print `coral01 coral02` as output, so `scontrol show hostnames $SLURM_JOB_NODELIST` would give the list in bash.
 
-By default, multi-GPU training uses a data parallel approach to training.  This is fine for small models, such as the one we are using here.  However for large models, you are likely to run out of GPU memory. In this case you want to switch to fully-sharded data parallel (FSDP) which splits the model layers over multiple GPUs.
+In Python, this would look like:
 
-To enable FSDP with Accelerate you have to specify `--use_fsdp` in the command-line. There are [a number of additional parameters](https://huggingface.co/docs/accelerate/en/package_reference/cli) that you can specify to control the way that layers and weights are distributed.
+```python
+import subprocess
+
+nodelist = os.environ.get("SLURM_JOB_NODELIST")
+output = subprocess.run(
+    ["scontrol", "show", "hostnames", nodelist],
+    capture_output=True,
+    encoding='utf-8',
+)
+full_nodelist = output.stdout.split()
+```
+The main node is then the first item of that list.
+
+Putting all of this together, along with code to run the actual accelerate command would look something like this in Python:
+
+```python
+import os
+import subprocess
+
+nodelist = os.environ.get("SLURM_JOB_NODELIST", socket.gethostname().split('.')[
+0])
+output = subprocess.run(
+    ["scontrol", "show", "hostnames", nodelist],
+    capture_output=True,
+    encoding='utf-8',
+)
+full_nodelist = output.stdout.split()
+main_node = full_nodelist[0]
+
+proc_id = os.environ.get("SLURM_PROCID", "0")
+
+subprocess.run(
+    [
+        "accelerate",
+        "launch",
+        "--multi-gpu",
+        "--num_processes",
+        "2",
+        "--num_machines",
+        "2",
+        "--main_process_ip",
+        main_node,
+        "--main_process_port",
+        "29500",
+        "--machine_rank",
+        proc_id,
+        "llm_fine_tuning.py",
+    ],
+)
+```
+
+A more general, improved version of this script can be found in the code examples.
+
+If we put that into a Python script called `run_accelerate.py` then our sbatch file would look like:
+
+```bash
+#!/bin/bash
+
+#SBATCH --job-name=multi-node-llm-example
+#SBATCH --partition=i7_h200
+#SBATCH --time=00:10:00
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-task=2
+#SBATCH --cpus-per-task=2
+
+
+# Load required modules
+module load python
+module load cuda
+
+# Activate Python virtual environment
+source $VENV_NAME/bin/activate
+
+# Set any environment variables or configuration options
+export PYTHONUNBUFFERED=1
+
+# Move to job directory
+cd $SLURM_SUBMIT_DIR
+
+# Run the Python script
+srun python run_accelerate.py
+```
+
+
+### Large Models
+
+For large models, you are likely to run out of CPU or GPU memory.
+If you run out of CPU memory, you can increase the amount of memory available to each task via `#SBATCH` commands, such as:
+
+```bash
+#SBATCH --mem-per-cpu=49000M
+```
+
+By default, multi-GPU training uses a data parallel approach to training.  If your model is larger than the available GPU memory you will need to switch to a sharded approach, such as fully-sharded data parallel (FSDP), which splits the model layers over multiple GPUs.
+
+To enable FSDP with Accelerate you have to specify `--use_fsdp` in the command-line instead of `--multi-gpu`. There are [a number of additional parameters](https://huggingface.co/docs/accelerate/en/package_reference/cli) that you can specify to control the way that layers and weights are distributed.
+
+The key restriction on automating the FSDP config is that Accelerate needs to be able to tell which layers are best for moving to different nodes or sharding via the `--fsdp_auto_wrap_policy`. The default is to use `TRANSFORMER_BASED_WRAP` which infers the important layers by class, but for newer or non-standard architectures may need to be told the appropriate classes to consider. Alternatively you can use `SIZE_BASED_WRAP` but then you need to specify `--fsdp_min_num_params` to determine how big a layer needs to be before it can be split amongst the GPUs (the default is 100 million).
 
